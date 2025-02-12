@@ -129,7 +129,7 @@ class AudioPlayerWidget extends WidgetType {
       this.root = null;
     }
     if (this.playerDiv) {
-      this.playerDiv.innerHTML = '';
+      this.playerDiv.remove();
     }
     this.mounted = false;
   }
