@@ -215,23 +215,7 @@ export default class WaveformPlayerPlugin extends Plugin {
   }
 
   getAudioFile(src: string): null | TFile {
-    // const decodedSrc = decodeURIComponent(src);
-    // let audioFile = this.app.vault.getAbstractFileByPath(decodedSrc);
     const audioFile = this.app.metadataCache.getFirstLinkpathDest(src, '');
-    // if (!audioFile || !(audioFile instanceof TFile)) {
-    //   const attachPath = this.app.vault.config.attachmentFolderPath;
-    //   if (!attachPath) {
-    //     return null;
-    //   }
-
-    //   audioFile = this.app.vault.getAbstractFileByPath(`${attachPath}/${decodedSrc}`);
-    //   if (!audioFile || !(audioFile instanceof TFile)) {
-    //     audioFile = this.app.vault.getAbstractFileByPath(`${attachPath}/${src}`);
-    //     if (!audioFile || !(audioFile instanceof TFile)) {
-    //       return null;
-    //     }
-    //   }
-    // }
     return audioFile instanceof TFile ? audioFile : null;
   }
 
@@ -245,7 +229,6 @@ export default class WaveformPlayerPlugin extends Plugin {
 
       audioElements.forEach((div) => {
         const src = div.getAttribute('src');
-        console.log('src', src);
         if (!src || !/\.(?:mp3|wav|ogg|m4a|webm)$/i.test(src)) {
           return;
         }
