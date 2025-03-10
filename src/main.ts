@@ -9,7 +9,7 @@ import { createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 
 const PLAYER_CLASS = 'waveform-player-widget';
-const AUDIO_LINK_PATTERN = '!\\[([^\\]]*)\\]\\(([^)]+\\.(?:mp3|wav|ogg|m4a|webm))\\)';
+const AUDIO_LINK_PATTERN = '!\\[([^\\]]*)\\]\\(([^)]+\\.(?:mp3|wav|ogg|m4a|webm))\\)|!\\[\\[([^\\]]+\\.(?:mp3|wav|ogg|m4a|webm))\\]\\]';
 
 class AudioPlayerWidget extends WidgetType {
   private static counter = 0;
@@ -80,7 +80,6 @@ class AudioPlayerWidget extends WidgetType {
     }
 
     const audioUrl = this.plugin.app.vault.getResourcePath(audioFile);
-    console.log("audioUrl", audioUrl);
     const decodedUrl = decodeURIComponent(audioUrl);
 
     try {
@@ -93,11 +92,12 @@ class AudioPlayerWidget extends WidgetType {
           src: decodedUrl,
           styles: {
             controls: {
-              paddingBottom: 0,
               width: '156px',
+              padding: 0,
             },
-            root: {
-              padding: '0.5em',
+            header: {
+              padding: 0,
+              paddingBottom: 8,
             },
             title: {
               fontSize: '14px',
@@ -174,7 +174,7 @@ export default class WaveformPlayerPlugin extends Plugin {
 
     const viewportPlugin = ViewPlugin.fromClass(class {
       private updateScheduled = false;
-      private timeout: NodeJS.Timeout | null = null;
+      private timeout: number | null = null;
 
       constructor(private readonly view: EditorView) {
         this.scheduleUpdate();
@@ -202,7 +202,7 @@ export default class WaveformPlayerPlugin extends Plugin {
           clearTimeout(this.timeout);
         }
 
-        this.timeout = setTimeout(() => {
+        this.timeout = window.setTimeout(() => {
           this.updateScheduled = false;
           this.view.dispatch({
             effects: updateAudioPlayers.of(undefined),
@@ -215,22 +215,23 @@ export default class WaveformPlayerPlugin extends Plugin {
   }
 
   getAudioFile(src: string): null | TFile {
-    const decodedSrc = decodeURIComponent(src);
-    let audioFile = this.app.vault.getAbstractFileByPath(decodedSrc);
-    if (!audioFile || !(audioFile instanceof TFile)) {
-      const attachPath = this.app.vault.config.attachmentFolderPath;
-      if (!attachPath) {
-        return null;
-      }
+    // const decodedSrc = decodeURIComponent(src);
+    // let audioFile = this.app.vault.getAbstractFileByPath(decodedSrc);
+    const audioFile = this.app.metadataCache.getFirstLinkpathDest(src, '');
+    // if (!audioFile || !(audioFile instanceof TFile)) {
+    //   const attachPath = this.app.vault.config.attachmentFolderPath;
+    //   if (!attachPath) {
+    //     return null;
+    //   }
 
-      audioFile = this.app.vault.getAbstractFileByPath(`${attachPath}/${decodedSrc}`);
-      if (!audioFile || !(audioFile instanceof TFile)) {
-        audioFile = this.app.vault.getAbstractFileByPath(`${attachPath}/${src}`);
-        if (!audioFile || !(audioFile instanceof TFile)) {
-          return null;
-        }
-      }
-    }
+    //   audioFile = this.app.vault.getAbstractFileByPath(`${attachPath}/${decodedSrc}`);
+    //   if (!audioFile || !(audioFile instanceof TFile)) {
+    //     audioFile = this.app.vault.getAbstractFileByPath(`${attachPath}/${src}`);
+    //     if (!audioFile || !(audioFile instanceof TFile)) {
+    //       return null;
+    //     }
+    //   }
+    // }
     return audioFile instanceof TFile ? audioFile : null;
   }
 
@@ -244,6 +245,7 @@ export default class WaveformPlayerPlugin extends Plugin {
 
       audioElements.forEach((div) => {
         const src = div.getAttribute('src');
+        console.log('src', src);
         if (!src || !/\.(?:mp3|wav|ogg|m4a|webm)$/i.test(src)) {
           return;
         }
@@ -274,11 +276,12 @@ export default class WaveformPlayerPlugin extends Plugin {
             src: decodedUrl,
             styles: {
               controls: {
-                paddingBottom: 0,
                 width: '156px',
+                padding: 0,
               },
-              root: {
-                padding: '0.5em',
+              header: {
+                padding: 0,
+                paddingBottom: 8,
               },
               title: {
                 fontSize: '14px',
@@ -310,9 +313,12 @@ export default class WaveformPlayerPlugin extends Plugin {
       // 每次创建新的正则表达式实例
       const regex = new RegExp(AUDIO_LINK_PATTERN, 'gi');
 
-      // 使用 matchAll 替代 while 循环
       Array.from(lineText.matchAll(regex)).forEach((match) => {
-        const [, title, src] = match;
+        const [_, title, mdSrc, obsidianSrc] = match;
+        // 如果是 Obsidian 格式的链接，使用 obsidianSrc 作为源和标题
+        const src = obsidianSrc || mdSrc;
+        const effectiveTitle = obsidianSrc ? obsidianSrc.split('/').pop()?.replace(/\.[^.]+$/, '') || '' : (title || '');
+
         if (!src) {
           return;
         }
@@ -326,7 +332,7 @@ export default class WaveformPlayerPlugin extends Plugin {
             block: true, // 添加 block 属性
             persistent: true,
             side: 1, // 在匹配文本后面插入
-            widget: new AudioPlayerWidget(src, title || '', this),
+            widget: new AudioPlayerWidget(src, effectiveTitle, this),
           }).range(matchEnd),
         );
       });

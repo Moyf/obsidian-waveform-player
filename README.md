@@ -1,4 +1,4 @@
-# Obsidian Waveform Audio Player
+# Waveform Audio Player Plugin
 
 A plugin that enhances the display of audio files in Obsidian, supporting both audio attachments and recorded audio files.
 
