@@ -11,7 +11,7 @@
 
 /* 隐藏默认音频元素 */
 .internal-embed.audio-embed {
-  display: none;
+  display: none !important;
 }
 
 /* 播放器容器样式 */
