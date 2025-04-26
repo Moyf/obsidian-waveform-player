@@ -10,7 +10,7 @@ import { createRoot } from 'react-dom/client';
 import L from './L';
 
 const PLAYER_CLASS = 'waveform-player-widget';
-const AUDIO_LINK_PATTERN = '!\\[([^\\]]*)\\]\\(([^)]+\\.(?:mp3|wav|ogg|m4a|webm))\\)|!\\[\\[([^\\]]+\\.(?:mp3|wav|ogg|m4a|webm))\\]\\]';
+const AUDIO_LINK_PATTERN = '!\\[([^\\]]*)\\]\\(([^)]+\\.(?:mp3|wav|ogg|m4a|webm))(?:\\|([0-9]+-[0-9]+))?\\)|!\\[\\[([^\\]]+\\.(?:mp3|wav|ogg|m4a|webm))(?:\\|([0-9]+-[0-9]+))?\\]\\]';
 
 // 波形类型枚举
 type WaveformType = 'bars' | 'envelope' | 'line' | 'mirror' | 'wave';
@@ -47,16 +47,20 @@ interface PlayerProps {
   title: string;
   plugin: WaveformPlayerPlugin;
   id?: string;
+  startTime?: number;
+  endTime?: number;
 }
 
 // 创建播放器React元素的统一函数
-function createPlayerElement({ src, title, plugin, id }: PlayerProps): ReactNode {
+function createPlayerElement({ src, title, plugin, id, startTime, endTime }: PlayerProps): ReactNode {
   return createElement(WaveformPlayer as ComponentType<any>, {
     className: 'wa-obsidian-player',
     key: id,
     samplePoints: plugin.settings.samplePoints, // 使用设置中的采样点数量
     src,
     showDownloadButton: false,
+    startTime,
+    endTime,
     onPlay: (ctx: AudioPlayerContextValue) => {
       if (plugin.settings.stopOthersOnPlay) {
         audioPlayerContexts.forEach(player => {
@@ -105,6 +109,8 @@ class AudioPlayerWidget extends WidgetType {
   private root: null | ReturnType<typeof createRoot> = null;
   // 记录创建时的设置版本，用于检测设置是否变化
   private settingsVersion: number;
+  private startTime?: number;
+  private endTime?: number;
 
   // 存储所有实例的静态集合
   private static instances: Set<AudioPlayerWidget> = new Set();
@@ -116,6 +122,7 @@ class AudioPlayerWidget extends WidgetType {
     private readonly src: string,
     private readonly title: string,
     private readonly plugin: WaveformPlayerPlugin,
+    private readonly timeRange?: string
   ) {
     super();
     this.id = `audio-player-${AudioPlayerWidget.counter++}`;
@@ -123,6 +130,13 @@ class AudioPlayerWidget extends WidgetType {
     this.settingsVersion = this.plugin.settingsVersion;
     // 将实例添加到集合中
     AudioPlayerWidget.instances.add(this);
+    
+    // 解析时间范围
+    if (timeRange) {
+      const [start, end] = timeRange.split('-').map(Number);
+      this.startTime = start;
+      this.endTime = end;
+    }
   }
 
   destroy() {
@@ -199,14 +213,14 @@ class AudioPlayerWidget extends WidgetType {
 
     try {
       this.root = createRoot(this.playerDiv);
-      this.root.render(
-        createPlayerElement({
-          src: decodedUrl,
-          title: this.title || audioFile.basename,
-          plugin: this.plugin,
-          id: this.id
-        })
-      );
+      this.root.render(createPlayerElement({
+        src: decodedUrl,
+        title: this.title || audioFile.basename,
+        plugin: this.plugin,
+        id: this.id,
+        startTime: this.startTime,
+        endTime: this.endTime
+      }));
       this.mounted = true;
     }
     catch (error) {
@@ -503,7 +517,7 @@ export default class WaveformPlayerPlugin extends Plugin {
       const regex = new RegExp(AUDIO_LINK_PATTERN, 'gi');
 
       Array.from(lineText.matchAll(regex)).forEach((match) => {
-        const [_, title, mdSrc, obsidianSrc] = match;
+        const [_, title, mdSrc, obsidianSrc, timeRange] = match;
         // 如果是 Obsidian 格式的链接，使用 obsidianSrc 作为源和标题
         const src = obsidianSrc || mdSrc;
         const effectiveTitle = obsidianSrc ? obsidianSrc.split('/').pop()?.replace(/\.[^.]+$/, '') || '' : (title || '');
@@ -521,7 +535,7 @@ export default class WaveformPlayerPlugin extends Plugin {
             block: true, // 添加 block 属性
             persistent: true,
             side: 1, // 在匹配文本后面插入
-            widget: new AudioPlayerWidget(src, effectiveTitle, this),
+            widget: new AudioPlayerWidget(src, effectiveTitle, this, timeRange),
           }).range(matchEnd),
         );
       });
